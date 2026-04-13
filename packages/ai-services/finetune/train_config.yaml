@@ -1,0 +1,76 @@
+# GodotForge GDScript Fine-Tuning Configuration
+# Usage: python train.py --config train_config.yaml
+
+# ---------------------------------------------------------------------------
+# Base model
+# ---------------------------------------------------------------------------
+model:
+  name: "deepseek-ai/deepseek-coder-6.7b-instruct"
+  dtype: "float16"            # bfloat16 on Ampere+; float16 otherwise
+  load_in_4bit: true          # QLoRA -- 4-bit NF4 quantisation
+  trust_remote_code: true
+
+# ---------------------------------------------------------------------------
+# LoRA adapter
+# ---------------------------------------------------------------------------
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+# ---------------------------------------------------------------------------
+# Dataset
+# ---------------------------------------------------------------------------
+dataset:
+  train_file: "data/train_data.jsonl"       # Instruction-tuning JSONL
+  eval_file: ""                              # Optional; leave blank to skip eval
+  eval_split: 0.05                           # Auto-split if no eval_file
+  max_seq_length: 4096
+  prompt_template: |
+    ### Instruction:
+    {instruction}
+
+    ### Input:
+    {input}
+
+    ### Response:
+    {output}
+
+# ---------------------------------------------------------------------------
+# Training
+# ---------------------------------------------------------------------------
+training:
+  output_dir: "outputs/godotforge-coder"
+  num_epochs: 3
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 4             # Effective batch = 16
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.03
+  lr_scheduler_type: "cosine"
+  fp16: true
+  bf16: false                                # Set true on Ampere+ GPUs
+  logging_steps: 10
+  save_steps: 200
+  save_total_limit: 3
+  seed: 42
+  optim: "adamw_8bit"                        # 8-bit Adam via bitsandbytes
+  gradient_checkpointing: true
+  max_grad_norm: 1.0
+  report_to: "none"                          # "wandb" to enable W&B logging
+
+# ---------------------------------------------------------------------------
+# GGUF Export
+# ---------------------------------------------------------------------------
+export:
+  enabled: true
+  output_name: "godotforge-coder"
+  quantisation: "q5_k_m"                     # Good quality/size tradeoff
+  output_dir: "outputs/gguf"

@@ -1,0 +1,42 @@
+# Ollama Modelfile for GodotForge Coder
+#
+# After training and GGUF export, update the FROM path below to point at your
+# actual quantised file, then run:
+#
+#   ollama create godotforge-coder -f Modelfile
+#   ollama run godotforge-coder "Write a CharacterBody2D script with double-jump"
+
+FROM ./outputs/gguf/godotforge-coder.Q5_K_M.gguf
+
+# Sampling parameters -- keep temperature low for deterministic code generation
+PARAMETER temperature 0.3
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER repeat_penalty 1.1
+PARAMETER num_ctx 4096
+PARAMETER stop "### Instruction:"
+PARAMETER stop "### Response:"
+
+# System prompt
+SYSTEM """You are GodotForge Coder, an expert AI assistant specialised in Godot 4.x game development and GDScript programming.
+
+Your capabilities:
+- Write correct, idiomatic GDScript for Godot 4.x (typed syntax preferred).
+- Create and modify scene structures (nodes, signals, resources).
+- Implement common game patterns: movement, physics, UI, animations, AI.
+- Explain Godot APIs and best practices clearly and concisely.
+
+Rules:
+- Always target Godot 4.x APIs. Never use deprecated Godot 3.x APIs.
+- Use static typing (var x: int) wherever possible.
+- Prefer signals over direct references for decoupling.
+- Include brief comments for non-obvious logic.
+- When asked to modify existing code, output only the changed portions unless
+  the user asks for the full file.
+"""
+
+TEMPLATE """### Instruction:
+{{ .Prompt }}
+
+### Response:
+"""
