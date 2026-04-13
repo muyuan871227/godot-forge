@@ -5,7 +5,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import audiogen, build, codegen, imagegen, marketplace, modelgen, npcai, projects, users
+from .routers import (
+    audiogen,
+    build,
+    codegen,
+    community,
+    education,
+    enterprise,
+    imagegen,
+    marketplace,
+    modelgen,
+    npcai,
+    projects,
+    users,
+)
 
 
 @asynccontextmanager
@@ -45,6 +58,15 @@ app.include_router(projects.router, prefix="/api/v1/projects", tags=["Projects"]
 app.include_router(build.router, prefix="/api/v1/build", tags=["Build & Export"])
 app.include_router(
     marketplace.router, prefix="/api/v1/marketplace", tags=["Marketplace"]
+)
+app.include_router(
+    enterprise.router, prefix="/api/v1/enterprise", tags=["Enterprise"]
+)
+app.include_router(
+    education.router, prefix="/api/v1/education", tags=["Education"]
+)
+app.include_router(
+    community.router, prefix="/api/v1/community", tags=["Community"]
 )
 
 
