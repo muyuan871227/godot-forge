@@ -155,6 +155,14 @@ export interface BuildResult {
   error?: string;
 }
 
+export interface GenerateAndPreviewResult {
+  files_written: string[];
+  preview_url: string;
+  explanation: string;
+  export_status: string;
+  export_log: string;
+}
+
 // ---- Auth endpoints ----
 export const authApi = {
   register: (data: { email: string; username: string; password: string }) =>
@@ -231,6 +239,14 @@ export const modelgenApi = {
       "/api/v1/modelgen/generate", { prompt, provider: provider ?? "hunyuan3d" }
     ),
 };
+
+// ---- Generate & Preview (combined) endpoint ----
+export const generateAndPreview = (projectId: string, prompt: string) =>
+  api.post<GenerateAndPreviewResult>(
+    `/api/v1/projects/${projectId}/generate-and-preview`,
+    { prompt },
+    300000, // 300s timeout — Godot export can be slow
+  );
 
 // ---- Build endpoints ----
 export const buildApi = {

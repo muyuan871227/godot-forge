@@ -4,6 +4,7 @@ import {
   imagegenApi,
   modelgenApi,
   audiogenApi,
+  generateAndPreview,
 } from "@/lib/api";
 
 export type ChatMode = "code" | "2d" | "3d" | "audio";
@@ -30,6 +31,10 @@ interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
 
+  // Preview state
+  previewUrl: string | null;
+  previewLoading: boolean;
+
   // Current input
   mode: ChatMode;
   inputValue: string;
@@ -40,6 +45,8 @@ interface ChatState {
   // Actions
   setMode: (mode: ChatMode) => void;
   setInputValue: (value: string) => void;
+  setPreviewUrl: (url: string | null) => void;
+  setPreviewLoading: (loading: boolean) => void;
 
   addMessage: (message: ChatMessage) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
@@ -66,12 +73,16 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isLoading: false,
+  previewUrl: null,
+  previewLoading: false,
   mode: "code",
   inputValue: "",
   streamingMessageId: null,
 
   setMode: (mode) => set({ mode }),
   setInputValue: (inputValue) => set({ inputValue }),
+  setPreviewUrl: (previewUrl) => set({ previewUrl }),
+  setPreviewLoading: (previewLoading) => set({ previewLoading }),
 
   addMessage: (message) =>
     set((state) => ({
@@ -113,22 +124,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let files: ChatFile[] | undefined;
 
       if (mode === "code") {
-        const result = await codegenApi.generate(content);
+        // Use the combined generate-and-preview endpoint
+        set({ previewLoading: true });
+        const result = await generateAndPreview(projectId, content);
         assistantContent = result.explanation || "Code generated successfully.";
-        if (result.files && result.files.length > 0) {
-          files = result.files.map((f) => ({
-            name: f.path.split("/").pop() || f.path,
-            content: f.content,
-            language: f.path.endsWith(".gd") ? "gdscript" : "text",
+
+        // Set preview URL from the response
+        if (result.preview_url) {
+          set({ previewUrl: result.preview_url, previewLoading: false });
+        } else {
+          set({ previewLoading: false });
+        }
+
+        // Still expose files for code display in messages
+        if (result.files_written && result.files_written.length > 0) {
+          files = result.files_written.map((filePath) => ({
+            name: filePath.split("/").pop() || filePath,
+            content: "", // File contents are on disk; path shown for reference
+            language: filePath.endsWith(".gd") ? "gdscript" : "text",
           }));
-        } else if (result.code) {
-          files = [
-            {
-              name: "generated.gd",
-              content: result.code,
-              language: "gdscript",
-            },
-          ];
+        }
+
+        // Append export status info if available
+        if (result.export_status && result.export_status !== "success") {
+          assistantContent += `\n\n**Export status:** ${result.export_status}`;
+          if (result.export_log) {
+            assistantContent += `\n\`\`\`\n${result.export_log}\n\`\`\``;
+          }
         }
       } else if (mode === "2d") {
         const result = await imagegenApi.generate(content, { style: "pixel_art" });
@@ -168,6 +190,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         messages: [...state.messages, errorMessage],
         isLoading: false,
+        previewLoading: false,
       }));
     }
   },

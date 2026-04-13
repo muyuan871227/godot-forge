@@ -1,5 +1,8 @@
 """Project management — CRUD, file operations, template support."""
+import asyncio
 import json
+import logging
+import mimetypes
 import os
 import shutil
 import uuid
@@ -8,10 +11,14 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse as FastAPIFileResponse
 from pydantic import BaseModel, Field
 
 from .users import get_current_user
+from ..config import settings
 from ..services.llm_service import generate_gdscript
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates_router = APIRouter()
@@ -329,6 +336,19 @@ class ChatResponse(BaseModel):
     files: list[dict[str, str]] = []
 
 
+class GeneratePreviewRequest(BaseModel):
+    prompt: str
+    auto_run: bool = True
+
+
+class GeneratePreviewResponse(BaseModel):
+    files_written: list[dict]  # [{path, size}]
+    preview_url: str  # URL to the exported HTML5 game
+    explanation: str
+    export_status: str  # "success" | "failed" | "no_templates"
+    export_log: str
+
+
 class TemplateInfo(BaseModel):
     id: str
     name: str
@@ -463,3 +483,264 @@ async def list_templates():
             continue
 
     return templates
+
+
+# ---------------------------------------------------------------------------
+# Generate-and-Preview helpers
+# ---------------------------------------------------------------------------
+
+def _resolve_godot_binary() -> str:
+    """Return the path to the Godot binary.
+
+    Priority:
+      1. ``settings.godot_path`` if explicitly set (and not the bare default)
+      2. macOS application bundle path
+      3. Fall back to ``godot`` (rely on PATH)
+    """
+    configured = getattr(settings, "godot_path", "godot")
+
+    # If the user explicitly configured a full path, honour it
+    if configured and configured != "godot" and Path(configured).exists():
+        return configured
+
+    # macOS application bundle
+    mac_path = Path("/Applications/Godot.app/Contents/MacOS/Godot")
+    if mac_path.exists():
+        return str(mac_path)
+
+    return configured or "godot"
+
+
+def _ensure_project_godot(project_dir: Path, project_name: str = "GeneratedProject") -> None:
+    """Create a minimal ``project.godot`` if one does not already exist."""
+    godot_file = project_dir / "project.godot"
+    if godot_file.exists():
+        return
+    godot_file.write_text(_default_project_godot(project_name, "4.4"))
+
+
+def _generate_export_presets(project_dir: Path) -> None:
+    """Write an ``export_presets.cfg`` configured for Web (HTML5) export."""
+    cfg = project_dir / "export_presets.cfg"
+    cfg.write_text(
+        '[preset.0]\n'
+        '\n'
+        'name="Web"\n'
+        'platform="Web"\n'
+        'runnable=true\n'
+        'dedicated_server=false\n'
+        'custom_features=""\n'
+        'export_filter="all_resources"\n'
+        'include_filter=""\n'
+        'exclude_filter=""\n'
+        'export_path=""\n'
+        'encryption_include_filters=""\n'
+        'encryption_exclude_filters=""\n'
+        'encrypt_pck=false\n'
+        'encrypt_directory=false\n'
+        '\n'
+        '[preset.0.options]\n'
+        '\n'
+        'custom_template/debug=""\n'
+        'custom_template/release=""\n'
+        'variant/extensions_support=false\n'
+        'vram_texture_compression/for_desktop=true\n'
+        'vram_texture_compression/for_mobile=false\n'
+        'html/export_icon=true\n'
+        'html/custom_html_shell=""\n'
+        'html/head_include=""\n'
+        'html/canvas_resize_policy=2\n'
+        'html/focus_canvas_on_start=true\n'
+        'html/experimental_virtual_keyboard=false\n'
+        'progressive_web_app/enabled=false\n'
+    )
+
+
+async def _run_godot_export(
+    project_dir: Path,
+    output_dir: Path,
+    timeout: float = 300.0,
+) -> tuple[bool, str]:
+    """Run Godot headless export targeting Web (HTML5).
+
+    Returns ``(success, log_text)``.
+    """
+    godot_bin = _resolve_godot_binary()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / "index.html"
+
+    cmd = [
+        godot_bin,
+        "--headless",
+        "--path", str(project_dir),
+        "--export-release", "Web",
+        str(output_file),
+    ]
+
+    logger.info("Running Godot export: %s", " ".join(cmd))
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        stdout_bytes, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        log_text = stdout_bytes.decode(errors="replace") if stdout_bytes else ""
+    except FileNotFoundError:
+        return False, f"Godot binary not found at '{godot_bin}'. Set GODOTFORGE_GODOT_PATH or install Godot."
+    except asyncio.TimeoutError:
+        try:
+            proc.kill()  # type: ignore[union-attr]
+        except Exception:
+            pass
+        return False, f"Godot export timed out after {timeout}s"
+    except Exception as exc:
+        return False, f"Failed to run Godot export: {exc}"
+
+    if proc.returncode != 0:
+        # Detect missing export templates
+        if "no export template" in log_text.lower() or "export template" in log_text.lower():
+            return False, f"NO_TEMPLATES: {log_text}"
+        return False, log_text
+
+    # Verify the output was actually created
+    if not output_file.exists():
+        return False, f"Export command succeeded (rc=0) but {output_file} was not created.\n{log_text}"
+
+    return True, log_text
+
+
+# ---------------------------------------------------------------------------
+# Generate-and-Preview endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/{project_id}/generate-and-preview", response_model=GeneratePreviewResponse)
+async def generate_and_preview(
+    project_id: str,
+    body: GeneratePreviewRequest,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Generate GDScript from a prompt, write files, export to Web, return preview URL."""
+    proj = _find_project(user["id"], project_id)
+    if proj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    proj_dir = _project_dir(user["id"], project_id)
+    proj_dir.mkdir(parents=True, exist_ok=True)
+
+    # ----- Step 1: AI code generation ----- #
+    try:
+        result = await generate_gdscript(
+            prompt=body.prompt,
+            godot_version=proj.get("godot_version", "4.4"),
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Code generation failed: {exc}",
+        )
+
+    explanation = result.get("explanation", "")
+    generated_files = result.get("files", [])
+
+    # ----- Step 2: Write generated files to project directory ----- #
+    files_written: list[dict] = []
+    for f in generated_files:
+        raw_path: str = f.get("path", "")
+        content: str = f.get("content", "")
+
+        # Strip the res:// prefix so we get a relative path within the project
+        rel_path = raw_path
+        if rel_path.startswith("res://"):
+            rel_path = rel_path[len("res://"):]
+        rel_path = rel_path.lstrip("/")
+
+        if not rel_path:
+            continue
+
+        dest = (proj_dir / rel_path).resolve()
+
+        # Prevent path traversal
+        if not str(dest).startswith(str(proj_dir)):
+            logger.warning("Skipping path traversal attempt: %s", raw_path)
+            continue
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content)
+        files_written.append({"path": rel_path, "size": len(content.encode())})
+
+    # ----- Step 3: Ensure project.godot exists ----- #
+    _ensure_project_godot(proj_dir, proj.get("name", "GeneratedProject"))
+
+    # ----- Step 4: Generate export_presets.cfg ----- #
+    _generate_export_presets(proj_dir)
+
+    # ----- Step 5: Run Godot headless export ----- #
+    output_dir = proj_dir / "_web_export"
+    success, log_text = await _run_godot_export(proj_dir, output_dir)
+
+    if success:
+        export_status = "success"
+    elif "NO_TEMPLATES:" in log_text:
+        export_status = "no_templates"
+        log_text = log_text.replace("NO_TEMPLATES: ", "", 1)
+    else:
+        export_status = "failed"
+
+    # ----- Step 6: Build preview URL ----- #
+    preview_url = f"/api/v1/projects/{project_id}/preview/index.html"
+
+    _touch_updated(user["id"], project_id)
+
+    return GeneratePreviewResponse(
+        files_written=files_written,
+        preview_url=preview_url,
+        explanation=explanation,
+        export_status=export_status,
+        export_log=log_text,
+    )
+
+
+@router.get("/{project_id}/preview/{file_path:path}")
+async def serve_preview(
+    project_id: str,
+    file_path: str,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Serve static files from the project's Web export output directory.
+
+    This allows an iframe to load the exported game at
+    ``/api/v1/projects/{project_id}/preview/index.html``.
+    """
+    proj = _find_project(user["id"], project_id)
+    if proj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    proj_dir = _project_dir(user["id"], project_id)
+    export_dir = proj_dir / "_web_export"
+
+    target = (export_dir / file_path).resolve()
+
+    # Prevent path traversal
+    if not str(target).startswith(str(export_dir.resolve())):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")
+
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preview file not found")
+
+    # Determine content type
+    content_type, _ = mimetypes.guess_type(str(target))
+    if content_type is None:
+        suffix = target.suffix.lower()
+        extra_types = {
+            ".wasm": "application/wasm",
+            ".pck": "application/octet-stream",
+        }
+        content_type = extra_types.get(suffix, "application/octet-stream")
+
+    return FastAPIFileResponse(
+        path=str(target),
+        media_type=content_type,
+        filename=target.name,
+    )
