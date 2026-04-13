@@ -1,0 +1,54 @@
+{
+  "name": "3D First-Person Shooter",
+  "description": "First-person shooter template with mouse-look camera, WASD movement, sprinting, jumping, and a basic hitscan weapon system. Built on CharacterBody3D with proper head bob and FOV effects.",
+  "category": "3d",
+  "tags": ["fps", "3d", "shooter", "action", "first-person"],
+  "thumbnail": "res://thumbnail.png",
+  "features": [
+    "Smooth mouse-look FPS camera",
+    "WASD movement with sprint and crouch",
+    "Jump with configurable gravity",
+    "Head bob effect while walking",
+    "Hitscan weapon with fire rate, damage, and ammo",
+    "Weapon recoil and spread",
+    "RayCast3D-based hit detection"
+  ],
+  "godot_version": "4.4",
+  "ai_customizable": {
+    "mouse_sensitivity": {
+      "type": "float",
+      "default": 0.002,
+      "description": "Mouse look sensitivity"
+    },
+    "move_speed": {
+      "type": "float",
+      "default": 5.0,
+      "description": "Walking speed in meters per second"
+    },
+    "sprint_speed": {
+      "type": "float",
+      "default": 8.0,
+      "description": "Sprint speed"
+    },
+    "jump_velocity": {
+      "type": "float",
+      "default": 4.5,
+      "description": "Jump impulse strength"
+    },
+    "weapon_damage": {
+      "type": "float",
+      "default": 25.0,
+      "description": "Damage per bullet"
+    },
+    "fire_rate": {
+      "type": "float",
+      "default": 0.1,
+      "description": "Seconds between shots"
+    },
+    "max_ammo": {
+      "type": "int",
+      "default": 30,
+      "description": "Magazine size"
+    }
+  }
+}

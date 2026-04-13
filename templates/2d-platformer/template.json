@@ -1,0 +1,48 @@
+{
+  "name": "2D Platformer",
+  "description": "Classic side-scrolling platformer with precise jump mechanics, collectibles, and enemies. Features CharacterBody2D-based movement with coyote time, variable jump height, and wall sliding.",
+  "category": "2d",
+  "tags": ["platformer", "2d", "action", "side-scroller", "beginner-friendly"],
+  "thumbnail": "res://thumbnail.png",
+  "features": [
+    "Tight platformer movement with acceleration and deceleration",
+    "Variable jump height (hold to jump higher)",
+    "Coyote time for forgiving ledge jumps",
+    "Double jump support",
+    "Game manager with score, lives, and level restart",
+    "Ready for tilemap-based level design"
+  ],
+  "godot_version": "4.4",
+  "ai_customizable": {
+    "player_speed": {
+      "type": "float",
+      "default": 300.0,
+      "description": "Player horizontal movement speed"
+    },
+    "jump_velocity": {
+      "type": "float",
+      "default": -400.0,
+      "description": "Initial jump impulse (negative = upward)"
+    },
+    "gravity_scale": {
+      "type": "float",
+      "default": 1.0,
+      "description": "Multiplier on default gravity"
+    },
+    "double_jump": {
+      "type": "bool",
+      "default": true,
+      "description": "Whether double jump is enabled"
+    },
+    "coyote_time": {
+      "type": "float",
+      "default": 0.12,
+      "description": "Seconds after leaving a ledge where jump is still allowed"
+    },
+    "max_lives": {
+      "type": "int",
+      "default": 3,
+      "description": "Number of lives the player starts with"
+    }
+  }
+}

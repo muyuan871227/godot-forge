@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import audiogen, codegen, imagegen, modelgen, npcai
+from .routers import audiogen, build, codegen, imagegen, modelgen, npcai, projects, users
 
 
 @asynccontextmanager
@@ -40,6 +40,9 @@ app.include_router(
     audiogen.router, prefix="/api/v1/audiogen", tags=["Audio Generation"]
 )
 app.include_router(npcai.router, prefix="/api/v1/npcai", tags=["NPC AI"])
+app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
+app.include_router(projects.router, prefix="/api/v1/projects", tags=["Projects"])
+app.include_router(build.router, prefix="/api/v1/build", tags=["Build & Export"])
 
 
 @app.get("/health")

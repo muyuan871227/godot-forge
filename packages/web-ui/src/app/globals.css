@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #0f0f23;
+    --foreground: #e2e8f0;
+    --surface: #1a1a2e;
+    --card: #16213e;
+    --border: #2a3a5c;
+    --accent: #6c63ff;
+    --accent-hover: #5a52d5;
+    --muted: #94a3b8;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --error: #f87171;
+  }
+
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-godot-accent hover:bg-godot-accent-hover text-white px-4 py-2 rounded-lg
+           font-medium transition-colors duration-200 focus:outline-none focus:ring-2
+           focus:ring-godot-accent focus:ring-offset-2 focus:ring-offset-godot-dark-bg;
+  }
+
+  .btn-secondary {
+    @apply border border-godot-dark-border text-gray-300 hover:bg-godot-dark-card
+           px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+  }
+
+  .card {
+    @apply bg-godot-dark-card border border-godot-dark-border rounded-xl p-6
+           transition-all duration-200 hover:border-godot-accent/50;
+  }
+
+  .input-field {
+    @apply w-full bg-godot-dark-bg border border-godot-dark-border rounded-lg px-4 py-2.5
+           text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2
+           focus:ring-godot-accent focus:border-transparent transition-colors;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400
+           hover:bg-godot-dark-card hover:text-white transition-colors duration-200;
+  }
+
+  .sidebar-link-active {
+    @apply bg-godot-accent/10 text-godot-accent border-l-2 border-godot-accent;
+  }
+
+  .tab-link {
+    @apply px-4 py-2 text-sm font-medium text-gray-400 hover:text-white
+           border-b-2 border-transparent hover:border-gray-600 transition-colors;
+  }
+
+  .tab-link-active {
+    @apply text-godot-accent border-godot-accent;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 3px;
+  }
+}

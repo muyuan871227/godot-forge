@@ -1,0 +1,43 @@
+{
+  "name": "2D Top-Down RPG",
+  "description": "Classic top-down RPG with 8-directional movement, NPC interaction, and dialogue. Features smooth grid-free movement, sprite animation direction, and a basic NPC system with dialogue triggers.",
+  "category": "2d",
+  "tags": ["rpg", "2d", "top-down", "adventure", "story", "npc"],
+  "thumbnail": "res://thumbnail.png",
+  "features": [
+    "8-directional character movement with smooth acceleration",
+    "Direction-aware sprite animation hooks",
+    "NPC interaction system with proximity detection",
+    "Simple dialogue data structure",
+    "Camera smoothing that follows the player",
+    "Ready for tilemap-based world design"
+  ],
+  "godot_version": "4.4",
+  "ai_customizable": {
+    "player_speed": {
+      "type": "float",
+      "default": 200.0,
+      "description": "Player walk speed in pixels per second"
+    },
+    "run_speed": {
+      "type": "float",
+      "default": 340.0,
+      "description": "Player run speed when holding shift"
+    },
+    "npc_interact_range": {
+      "type": "float",
+      "default": 48.0,
+      "description": "Distance in pixels for NPC interaction"
+    },
+    "camera_smoothing": {
+      "type": "float",
+      "default": 5.0,
+      "description": "Camera follow smoothing speed"
+    },
+    "dialog_speed": {
+      "type": "float",
+      "default": 0.03,
+      "description": "Seconds per character in typewriter effect"
+    }
+  }
+}

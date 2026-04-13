@@ -1,0 +1,48 @@
+{
+  "name": "3D Third-Person",
+  "description": "Third-person action-adventure template with an orbiting camera, smooth character rotation, sprint, and jump. The camera avoids clipping through walls using a spring-arm approach.",
+  "category": "3d",
+  "tags": ["third-person", "3d", "action", "adventure", "camera"],
+  "thumbnail": "res://thumbnail.png",
+  "features": [
+    "Orbiting third-person camera with mouse control",
+    "Spring arm collision avoidance (no wall clipping)",
+    "Smooth character rotation to face movement direction",
+    "Walk, sprint, and jump",
+    "Camera-relative movement (character moves relative to where the camera faces)",
+    "Ready for animation tree integration"
+  ],
+  "godot_version": "4.4",
+  "ai_customizable": {
+    "move_speed": {
+      "type": "float",
+      "default": 5.0,
+      "description": "Walk speed in m/s"
+    },
+    "sprint_speed": {
+      "type": "float",
+      "default": 8.5,
+      "description": "Sprint speed in m/s"
+    },
+    "jump_velocity": {
+      "type": "float",
+      "default": 5.0,
+      "description": "Jump impulse"
+    },
+    "mouse_sensitivity": {
+      "type": "float",
+      "default": 0.003,
+      "description": "Camera orbit sensitivity"
+    },
+    "camera_distance": {
+      "type": "float",
+      "default": 4.0,
+      "description": "Default distance from character"
+    },
+    "rotation_speed": {
+      "type": "float",
+      "default": 10.0,
+      "description": "Character rotation lerp speed"
+    }
+  }
+}
