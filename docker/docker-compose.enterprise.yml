@@ -1,0 +1,264 @@
+version: "3.9"
+
+# =============================================================================
+# GodotForge Enterprise Stack
+# =============================================================================
+# Full self-hosted deployment with GPU-accelerated AI, persistent storage,
+# object storage for assets, and model training capabilities.
+#
+# Usage:
+#   docker compose -f docker-compose.enterprise.yml up -d
+#
+# Prerequisites:
+#   - NVIDIA Container Toolkit for GPU support
+#   - Minimum 16 GB RAM, 50 GB disk
+#   - Copy .env.enterprise.example to .env and fill in secrets
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Core Application Services
+  # ---------------------------------------------------------------------------
+
+  mcp-server:
+    build:
+      context: ../packages/mcp-server
+      dockerfile: ../../docker/Dockerfile.mcp
+    ports:
+      - "${MCP_PORT:-6505}:6505"
+    environment:
+      - GODOT_MCP_PORT=6505
+      - GODOT_MCP_LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ../packages/mcp-server/src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - godotforge
+
+  ai-services:
+    build:
+      context: ../packages/ai-services
+      dockerfile: ../../docker/Dockerfile.ai
+    ports:
+      - "${AI_PORT:-8100}:8100"
+    environment:
+      # Database
+      - GODOTFORGE_DATABASE_URL=postgresql://godotforge:${POSTGRES_PASSWORD}@postgres:5432/godotforge
+      # Object storage
+      - GODOTFORGE_S3_ENDPOINT=http://minio:9000
+      - GODOTFORGE_S3_ACCESS_KEY=${MINIO_ROOT_USER:-godotforge}
+      - GODOTFORGE_S3_SECRET_KEY=${MINIO_ROOT_PASSWORD:-godotforge-secret}
+      - GODOTFORGE_S3_BUCKET=godotforge-assets
+      # LLM — private models via Ollama
+      - GODOTFORGE_LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - GODOTFORGE_OLLAMA_BASE_URL=http://ollama:11434
+      - GODOTFORGE_OLLAMA_MODEL=${OLLAMA_MODEL:-deepseek-coder-v2:16b}
+      # External LLM fallback (optional)
+      - GODOTFORGE_ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GODOTFORGE_OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Image generation
+      - GODOTFORGE_IMAGE_PROVIDER=${IMAGE_PROVIDER:-comfyui}
+      - GODOTFORGE_COMFYUI_URL=http://comfyui:8188
+      # Enterprise auth
+      - GODOTFORGE_AUTH_MODE=${AUTH_MODE:-jwt}
+      - GODOTFORGE_SAML_METADATA_URL=${SAML_METADATA_URL:-}
+      - GODOTFORGE_SAML_ENTITY_ID=${SAML_ENTITY_ID:-godotforge}
+      - GODOTFORGE_LDAP_URL=${LDAP_URL:-}
+      - GODOTFORGE_LDAP_BASE_DN=${LDAP_BASE_DN:-}
+      - GODOTFORGE_LDAP_BIND_DN=${LDAP_BIND_DN:-}
+      - GODOTFORGE_LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD:-}
+      # JWT
+      - GODOTFORGE_JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      # Model training
+      - GODOTFORGE_TRAINING_OUTPUT_DIR=/data/models
+      - GODOTFORGE_TRAINING_QUEUE_URL=redis://redis:6379/0
+    volumes:
+      - ../packages/ai-services/src:/app/src
+      - ai-cache:/app/cache
+      - model-data:/data/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - godotforge
+
+  web-ui:
+    build:
+      context: ../packages/web-ui
+      dockerfile: ../../docker/Dockerfile.web
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:${AI_PORT:-8100}
+      - NEXT_PUBLIC_WS_URL=ws://localhost:${MCP_PORT:-6505}
+      - NEXT_PUBLIC_AUTH_MODE=${AUTH_MODE:-jwt}
+      - NEXT_PUBLIC_SAML_ENABLED=${SAML_METADATA_URL:+true}
+    volumes:
+      - ../packages/web-ui/src:/app/src
+    depends_on:
+      - ai-services
+    restart: unless-stopped
+    networks:
+      - godotforge
+
+  # ---------------------------------------------------------------------------
+  # AI / GPU Services
+  # ---------------------------------------------------------------------------
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - godotforge
+
+  model-training:
+    build:
+      context: ../packages/ai-services
+      dockerfile: ../../docker/Dockerfile.ai
+    command: ["python", "-m", "src.training_worker"]
+    environment:
+      - GODOTFORGE_DATABASE_URL=postgresql://godotforge:${POSTGRES_PASSWORD}@postgres:5432/godotforge
+      - GODOTFORGE_S3_ENDPOINT=http://minio:9000
+      - GODOTFORGE_S3_ACCESS_KEY=${MINIO_ROOT_USER:-godotforge}
+      - GODOTFORGE_S3_SECRET_KEY=${MINIO_ROOT_PASSWORD:-godotforge-secret}
+      - GODOTFORGE_TRAINING_OUTPUT_DIR=/data/models
+      - GODOTFORGE_TRAINING_QUEUE_URL=redis://redis:6379/0
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - model-data:/data/models
+      - training-datasets:/data/datasets
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - godotforge
+
+  # ---------------------------------------------------------------------------
+  # Data Stores
+  # ---------------------------------------------------------------------------
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_USER=godotforge
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-godotforge}
+      - POSTGRES_DB=godotforge
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U godotforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - godotforge
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - godotforge
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-godotforge}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-godotforge-secret}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - godotforge
+
+  # Auto-create the default bucket on first start
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+        mc mb --ignore-existing local/godotforge-assets;
+        mc mb --ignore-existing local/godotforge-models;
+        mc mb --ignore-existing local/godotforge-training;
+        exit 0;
+      "
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-godotforge}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-godotforge-secret}
+    networks:
+      - godotforge
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+
+volumes:
+  ai-cache:
+  postgres-data:
+  redis-data:
+  minio-data:
+  ollama-models:
+  model-data:
+  training-datasets:
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+
+networks:
+  godotforge:
+    driver: bridge

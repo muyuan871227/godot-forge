@@ -5,6 +5,7 @@ import { registerInitCommand } from "./commands/init.js";
 import { registerGenerateCommand } from "./commands/generate.js";
 import { registerServeCommand } from "./commands/serve.js";
 import { registerAssetCommand } from "./commands/asset.js";
+import { registerPluginCommand } from "./commands/plugin.js";
 
 const VERSION = "0.1.0";
 
@@ -19,5 +20,6 @@ registerInitCommand(program);
 registerGenerateCommand(program);
 registerServeCommand(program);
 registerAssetCommand(program);
+registerPluginCommand(program);
 
 program.parse(process.argv);
