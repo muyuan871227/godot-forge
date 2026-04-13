@@ -9,8 +9,8 @@
     },
     {
       "name": "ai-services",
-      "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "source packages/ai-services/.venv/bin/activate && GODOTFORGE_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY uvicorn src.main:app --port 8100 --reload --app-dir packages/ai-services"],
+      "runtimeExecutable": "packages/ai-services/.venv/bin/python",
+      "runtimeArgs": ["-m", "uvicorn", "src.main:app", "--port", "8100", "--reload", "--app-dir", "packages/ai-services"],
       "port": 8100
     },
     {

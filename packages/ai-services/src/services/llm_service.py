@@ -342,9 +342,13 @@ async def _generate_ollama(
 ) -> dict[str, Any]:
     import httpx
 
-    # NO_PROXY doesn't always work with httpx — explicitly set no proxy for localhost
-    transport = httpx.AsyncHTTPTransport(proxy=None)
-    async with httpx.AsyncClient(timeout=120.0, transport=transport) as client:
+    # Bypass system proxy for localhost Ollama and use generous timeout
+    # (first model load can take 60s+, inference up to 300s for large models)
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(timeout=300.0, connect=10.0),
+        proxy=None,
+        trust_env=False,  # Ignore HTTP_PROXY / HTTPS_PROXY env vars
+    ) as client:
         response = await client.post(
             f"{settings.ollama_base_url}/api/chat",
             json={
