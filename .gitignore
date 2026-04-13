@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+build/
+dist/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Godot
+.godot/
+*.import
+
+# Turbo
+.turbo/
+
+# Cache
+.cache/
+ai-cache/
+
+# Logs
+*.log
