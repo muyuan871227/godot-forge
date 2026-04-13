@@ -1,4 +1,5 @@
 """LLM 统一服务 — 支持多供应商切换"""
+import os
 import re
 from typing import Any
 
@@ -44,6 +45,8 @@ async def generate_gdscript(
         return await _generate_anthropic(full_prompt)
     elif settings.llm_provider == "openai":
         return await _generate_openai(full_prompt)
+    elif settings.llm_provider == "glm":
+        return await _generate_glm(full_prompt)
     elif settings.llm_provider == "ollama":
         return await _generate_ollama(full_prompt)
     else:
@@ -272,7 +275,8 @@ async def _generate_anthropic(
 ) -> dict[str, Any]:
     import anthropic
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    api_key = settings.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+    client = anthropic.AsyncAnthropic(api_key=api_key) if api_key else anthropic.AsyncAnthropic()
     response = await client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=8192,
@@ -294,6 +298,32 @@ async def _generate_openai(
     client = AsyncOpenAI(api_key=settings.openai_api_key)
     response = await client.chat.completions.create(
         model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=8192,
+    )
+    text = response.choices[0].message.content or ""
+    result = _parse_code_response(text)
+    result["_raw_text"] = text
+    return result
+
+
+async def _generate_glm(
+    prompt: str,
+    system_prompt: str = GDSCRIPT_SYSTEM_PROMPT,
+) -> dict[str, Any]:
+    """通过智谱 AI GLM API 生成（OpenAI 兼容接口）"""
+    from openai import AsyncOpenAI
+
+    api_key = settings.glm_api_key or os.environ.get("GLM_API_KEY", "")
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=settings.glm_base_url,
+    )
+    response = await client.chat.completions.create(
+        model=settings.glm_model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},

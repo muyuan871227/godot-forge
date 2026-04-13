@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
+import { useParams } from "next/navigation";
 import ChatMessage from "./ChatMessage";
 import {
   Send,
@@ -11,20 +12,9 @@ import {
   Paperclip,
   Sparkles,
   Loader2,
-  RotateCcw,
   Settings2,
 } from "lucide-react";
-
-export type ChatMode = "code" | "2d" | "3d" | "audio";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  mode: ChatMode;
-  timestamp: Date;
-  files?: { name: string; content: string; language: string }[];
-}
+import { useChatStore, type ChatMode } from "@/lib/stores/chat";
 
 const modes: { value: ChatMode; label: string; icon: React.ElementType; description: string }[] = [
   { value: "code", label: "Code", icon: Code2, description: "Generate GDScript code" },
@@ -33,9 +23,9 @@ const modes: { value: ChatMode; label: string; icon: React.ElementType; descript
   { value: "audio", label: "Audio", icon: Music, description: "Generate sound & music" },
 ];
 
-const welcomeMessage: Message = {
+const welcomeMessage = {
   id: "welcome",
-  role: "assistant",
+  role: "assistant" as const,
   content: `Welcome to GodotForge AI Assistant! I can help you with:
 
 - **Code Generation**: Write GDScript for player controllers, enemy AI, UI systems, and more
@@ -44,77 +34,40 @@ const welcomeMessage: Message = {
 - **Audio**: Generate sound effects and background music
 
 Select a mode above and describe what you need. I'll generate the code or assets and you can apply them directly to your project.`,
-  mode: "code",
+  mode: "code" as ChatMode,
   timestamp: new Date(),
 };
 
 export default function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([welcomeMessage]);
-  const [input, setInput] = useState("");
-  const [mode, setMode] = useState<ChatMode>("code");
-  const [isLoading, setIsLoading] = useState(false);
+  const params = useParams();
+  const projectId = (params?.id as string) || "default";
+
+  const {
+    messages,
+    isLoading,
+    mode,
+    inputValue,
+    setMode,
+    setInputValue,
+    sendMessage,
+  } = useChatStore();
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Add welcome message if empty
+  const displayMessages =
+    messages.length === 0 ? [welcomeMessage, ...messages] : messages;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input,
-      mode,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
-
-    // Simulate AI response
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: getSimulatedResponse(input, mode),
-        mode,
-        timestamp: new Date(),
-        files:
-          mode === "code"
-            ? [
-                {
-                  name: "player_controller.gd",
-                  content: `extends CharacterBody2D
-
-const SPEED = 300.0
-const JUMP_VELOCITY = -400.0
-
-func _physics_process(delta: float) -> void:
-    var direction = Input.get_axis("move_left", "move_right")
-    if direction:
-        velocity.x = direction * SPEED
-    else:
-        velocity.x = move_toward(velocity.x, 0, SPEED)
-
-    if is_on_floor() and Input.is_action_just_pressed("jump"):
-        velocity.y = JUMP_VELOCITY
-
-    if not is_on_floor():
-        velocity.y += get_gravity().y * delta
-
-    move_and_slide()`,
-                  language: "gdscript",
-                },
-              ]
-            : undefined,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setIsLoading(false);
-    }, 2000);
+    if (!inputValue.trim() || isLoading) return;
+    const content = inputValue;
+    setInputValue("");
+    await sendMessage(projectId, content, mode);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -156,7 +109,7 @@ func _physics_process(delta: float) -> void:
 
       {/* Messages */}
       <div className="flex-1 overflow-auto scrollbar-thin px-4 py-6 space-y-6">
-        {messages.map((message) => (
+        {displayMessages.map((message) => (
           <ChatMessage key={message.id} message={message} />
         ))}
         {isLoading && (
@@ -182,8 +135,8 @@ func _physics_process(delta: float) -> void:
           <div className="flex-1 relative">
             <textarea
               ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
                 mode === "code"
@@ -209,7 +162,7 @@ func _physics_process(delta: float) -> void:
           </div>
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={!inputValue.trim() || isLoading}
             className="p-2.5 bg-godot-accent hover:bg-godot-accent-hover text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             <Send className="w-5 h-5" />
@@ -221,46 +174,4 @@ func _physics_process(delta: float) -> void:
       </div>
     </div>
   );
-}
-
-function getSimulatedResponse(input: string, mode: ChatMode): string {
-  if (mode === "code") {
-    return `Here's a GDScript implementation based on your request:
-
-I've created a \`player_controller.gd\` script that includes:
-
-- **Movement**: Horizontal movement with configurable speed
-- **Jumping**: Physics-based jump with gravity
-- **Input mapping**: Uses Godot's input action system
-
-You can apply this script to a \`CharacterBody2D\` node. Make sure to set up the input actions \`move_left\`, \`move_right\`, and \`jump\` in your project settings.`;
-  }
-  if (mode === "2d") {
-    return `I've generated a sprite based on your description. The asset has been added to your project's \`res://assets/sprites/\` directory.
-
-**Details:**
-- Resolution: 32x32 pixels
-- Format: PNG with transparency
-- Style: Pixel art
-
-You can drag it into your scene or assign it to a \`Sprite2D\` node.`;
-  }
-  if (mode === "3d") {
-    return `I've generated a 3D model based on your description. The model has been saved to \`res://assets/models/\`.
-
-**Details:**
-- Format: GLTF 2.0
-- Polygons: ~1,200 (optimized for real-time)
-- Materials: PBR-ready with albedo and normal maps
-
-Import it into your Godot scene as a \`MeshInstance3D\`.`;
-  }
-  return `I've generated an audio clip based on your description. The file has been saved to \`res://assets/audio/\`.
-
-**Details:**
-- Format: OGG Vorbis
-- Duration: 3.2 seconds
-- Sample Rate: 44.1 kHz
-
-Add it to an \`AudioStreamPlayer\` node to use it in your game.`;
 }

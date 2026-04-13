@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Search,
@@ -9,59 +10,10 @@ import {
   Clock,
   MoreVertical,
   Gamepad2,
-  Globe,
-  Sword,
-  Puzzle,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  template: string;
-  lastModified: string;
-  icon: React.ElementType;
-  status: "active" | "building" | "archived";
-}
-
-const mockProjects: Project[] = [
-  {
-    id: "1",
-    name: "Space Odyssey",
-    description: "A 2D side-scrolling space shooter with procedural levels",
-    template: "2D Platformer",
-    lastModified: "2 hours ago",
-    icon: Gamepad2,
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Fantasy RPG",
-    description: "Top-down RPG with AI-generated quests and dialogue",
-    template: "2D Top-Down RPG",
-    lastModified: "1 day ago",
-    icon: Sword,
-    status: "building",
-  },
-  {
-    id: "3",
-    name: "Web Puzzle",
-    description: "Browser-based puzzle game with physics mechanics",
-    template: "Puzzle",
-    lastModified: "3 days ago",
-    icon: Puzzle,
-    status: "active",
-  },
-  {
-    id: "4",
-    name: "Multiplayer Arena",
-    description: "3D multiplayer arena combat game",
-    template: "3D FPS",
-    lastModified: "1 week ago",
-    icon: Globe,
-    status: "archived",
-  },
-];
+import { useProjectStore } from "@/lib/stores/project";
 
 const statusColors: Record<string, string> = {
   active: "bg-godot-success/20 text-godot-success",
@@ -69,14 +21,67 @@ const statusColors: Record<string, string> = {
   archived: "bg-gray-500/20 text-gray-400",
 };
 
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  } catch {
+    return dateStr;
+  }
+}
+
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const router = useRouter();
+  const {
+    projects,
+    projectsLoading,
+    projectsError,
+    fetchProjects,
+    createProject,
+    deleteProject,
+  } = useProjectStore();
 
-  const filtered = mockProjects.filter(
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  const filtered = projects.filter(
     (p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleNewProject = async () => {
+    const name = window.prompt("Enter project name:");
+    if (!name?.trim()) return;
+    const description = window.prompt("Enter project description (optional):") || "";
+    try {
+      const project = await createProject({ name: name.trim(), description });
+      router.push(`/project/${project.id}`);
+    } catch {
+      // Error is already stored in projectsError
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    try {
+      await deleteProject(id);
+    } catch {
+      // Error is already stored in projectsError
+    }
+  };
 
   return (
     <div className="p-8">
@@ -88,10 +93,10 @@ export default function HomePage() {
             Create and manage your Godot game projects
           </p>
         </div>
-        <Link href="/templates" className="btn-primary flex items-center gap-2">
+        <button onClick={handleNewProject} className="btn-primary flex items-center gap-2">
           <Plus className="w-5 h-5" />
           New Project
-        </Link>
+        </button>
       </div>
 
       {/* Search */}
@@ -106,11 +111,41 @@ export default function HomePage() {
         />
       </div>
 
+      {/* Error State */}
+      {projectsError && (
+        <div className="mb-6 p-4 rounded-xl bg-godot-error/10 border border-godot-error/30 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-godot-error shrink-0" />
+          <p className="text-sm text-godot-error">{projectsError}</p>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {projectsLoading && projects.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-godot-accent animate-spin mb-4" />
+          <p className="text-gray-400">Loading projects...</p>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!projectsLoading && !projectsError && projects.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="w-20 h-20 rounded-2xl bg-godot-dark-card flex items-center justify-center mb-4">
+            <Gamepad2 className="w-10 h-10 text-gray-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-300 mb-2">No projects yet</h3>
+          <p className="text-gray-500 mb-6">Create your first Godot game project to get started.</p>
+          <button onClick={handleNewProject} className="btn-primary flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            Create Project
+          </button>
+        </div>
+      )}
+
       {/* Project Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filtered.map((project) => {
-          const Icon = project.icon;
-          return (
+      {filtered.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filtered.map((project) => (
             <Link
               key={project.id}
               href={`/project/${project.id}`}
@@ -118,17 +153,17 @@ export default function HomePage() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 bg-godot-accent/20 rounded-xl flex items-center justify-center group-hover:bg-godot-accent/30 transition-colors">
-                  <Icon className="w-6 h-6 text-godot-accent" />
+                  <Gamepad2 className="w-6 h-6 text-godot-accent" />
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[project.status]}`}
+                    className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[project.status] || statusColors.active}`}
                   >
                     {project.status}
                   </span>
                   <button
                     className="p-1 text-gray-500 hover:text-white transition-colors"
-                    onClick={(e) => e.preventDefault()}
+                    onClick={(e) => handleDelete(e, project.id)}
                   >
                     <MoreVertical className="w-4 h-4" />
                   </button>
@@ -145,30 +180,30 @@ export default function HomePage() {
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span className="flex items-center gap-1">
                   <FolderOpen className="w-3.5 h-3.5" />
-                  {project.template}
+                  {project.template || "Custom"}
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
-                  {project.lastModified}
+                  {formatDate(project.createdAt)}
                 </span>
               </div>
             </Link>
-          );
-        })}
+          ))}
 
-        {/* New Project Card */}
-        <Link
-          href="/templates"
-          className="card flex flex-col items-center justify-center min-h-[200px] border-dashed border-2 border-godot-dark-border hover:border-godot-accent/50 group cursor-pointer"
-        >
-          <div className="w-14 h-14 rounded-full bg-godot-dark-bg flex items-center justify-center mb-3 group-hover:bg-godot-accent/20 transition-colors">
-            <Plus className="w-7 h-7 text-gray-500 group-hover:text-godot-accent transition-colors" />
-          </div>
-          <span className="text-sm font-medium text-gray-500 group-hover:text-gray-300 transition-colors">
-            Create New Project
-          </span>
-        </Link>
-      </div>
+          {/* New Project Card */}
+          <button
+            onClick={handleNewProject}
+            className="card flex flex-col items-center justify-center min-h-[200px] border-dashed border-2 border-godot-dark-border hover:border-godot-accent/50 group cursor-pointer"
+          >
+            <div className="w-14 h-14 rounded-full bg-godot-dark-bg flex items-center justify-center mb-3 group-hover:bg-godot-accent/20 transition-colors">
+              <Plus className="w-7 h-7 text-gray-500 group-hover:text-godot-accent transition-colors" />
+            </div>
+            <span className="text-sm font-medium text-gray-500 group-hover:text-gray-300 transition-colors">
+              Create New Project
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,14 +5,16 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from .users import get_current_user
+from ..services.llm_service import generate_gdscript
 
 router = APIRouter()
+templates_router = APIRouter()
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -303,3 +305,161 @@ def _touch_updated(owner_id: str, project_id: str) -> None:
             p["updated_at"] = datetime.now(timezone.utc).isoformat()
             break
     _save_projects(owner_id, projects)
+
+
+# ---------------------------------------------------------------------------
+# New models
+# ---------------------------------------------------------------------------
+
+class FileTreeNode(BaseModel):
+    name: str
+    type: str = Field(..., pattern=r"^(file|directory)$")
+    path: str
+    children: list["FileTreeNode"] = []
+
+
+class ChatRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    mode: str = Field(default="code", pattern=r"^(code|chat)$")
+
+
+class ChatResponse(BaseModel):
+    role: str = "assistant"
+    content: str
+    files: list[dict[str, str]] = []
+
+
+class TemplateInfo(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    category: str = ""
+    tags: list[str] = []
+    thumbnail: str = ""
+    features: list[str] = []
+    godot_version: str = ""
+    ai_customizable: dict[str, Any] = {}
+
+
+# ---------------------------------------------------------------------------
+# Helpers for new endpoints
+# ---------------------------------------------------------------------------
+
+SKIP_DIRS = {".godot", ".import", "__pycache__"}
+SKIP_EXTENSIONS = {".import"}
+
+
+def _build_nested_file_tree(root: Path, rel_prefix: str = "") -> list[dict]:
+    """Walk *root* recursively and return a nested JSON-serialisable tree.
+
+    Skips `.godot/`, `.import` files, and other non-essential entries.
+    """
+    nodes: list[dict] = []
+    if not root.is_dir():
+        return nodes
+    for child in sorted(root.iterdir()):
+        if child.name in SKIP_DIRS or child.name.startswith("."):
+            continue
+        if child.suffix in SKIP_EXTENSIONS:
+            continue
+        rel_path = f"{rel_prefix}/{child.name}" if rel_prefix else child.name
+        if child.is_dir():
+            children = _build_nested_file_tree(child, rel_path)
+            nodes.append({
+                "name": child.name,
+                "type": "directory",
+                "path": rel_path,
+                "children": children,
+            })
+        else:
+            nodes.append({
+                "name": child.name,
+                "type": "file",
+                "path": rel_path,
+            })
+    return nodes
+
+
+# ---------------------------------------------------------------------------
+# New routes on the projects router
+# ---------------------------------------------------------------------------
+
+@router.get("/{project_id}/tree")
+async def get_project_tree(
+    project_id: str,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Return the project's file tree as a nested JSON structure."""
+    proj = _find_project(user["id"], project_id)
+    if proj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    proj_dir = _project_dir(user["id"], project_id)
+    if not proj_dir.is_dir():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project directory not found")
+
+    tree = _build_nested_file_tree(proj_dir)
+    return tree
+
+
+@router.post("/{project_id}/chat", response_model=ChatResponse)
+async def project_chat(
+    project_id: str,
+    body: ChatRequest,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Chat proxy endpoint — forwards to codegen or returns a plain response."""
+    proj = _find_project(user["id"], project_id)
+    if proj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    if body.mode == "code":
+        try:
+            result = await generate_gdscript(
+                prompt=body.prompt,
+                godot_version=proj.get("godot_version", "4.4"),
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Code generation failed: {exc}",
+            )
+
+        content = result.get("explanation", "")
+        files = result.get("files", [])
+        return ChatResponse(role="assistant", content=content, files=files)
+
+    # Default / "chat" mode — echo back (placeholder for a future general chat LLM call)
+    return ChatResponse(
+        role="assistant",
+        content=f"(chat mode not yet implemented) You said: {body.prompt}",
+        files=[],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Templates router  (mounted separately at /api/v1/templates)
+# ---------------------------------------------------------------------------
+
+@templates_router.get("", response_model=list[TemplateInfo])
+async def list_templates():
+    """List available game templates by reading template.json from each template directory."""
+    templates: list[dict] = []
+
+    if not TEMPLATES_ROOT.is_dir():
+        return templates
+
+    for entry in sorted(TEMPLATES_ROOT.iterdir()):
+        if not entry.is_dir():
+            continue
+        meta_file = entry / "template.json"
+        if not meta_file.exists():
+            continue
+        try:
+            data = json.loads(meta_file.read_text())
+            data.setdefault("id", entry.name)
+            templates.append(data)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    return templates

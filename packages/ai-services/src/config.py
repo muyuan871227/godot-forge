@@ -1,4 +1,6 @@
 """配置管理 — 所有 AI 供应商通过环境变量配置"""
+import os
+
 from pydantic_settings import BaseSettings
 
 
@@ -6,9 +8,12 @@ class Settings(BaseSettings):
     port: int = 8100
 
     # LLM
-    llm_provider: str = "anthropic"  # anthropic | openai | ollama
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
+    llm_provider: str = "anthropic"  # anthropic | openai | glm | ollama
+    anthropic_api_key: str = os.environ.get("ANTHROPIC_API_KEY", "")
+    openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
+    glm_api_key: str = os.environ.get("GLM_API_KEY", "")
+    glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4/"
+    glm_model: str = "glm-4-flash"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "deepseek-coder-v2:16b"
 
@@ -28,7 +33,11 @@ class Settings(BaseSettings):
     # Godot
     godot_path: str = "godot"
 
-    model_config = {"env_file": ".env", "env_prefix": "GODOTFORGE_"}
+    model_config = {
+        "env_file": "../../.env",
+        "env_prefix": "GODOTFORGE_",
+        "extra": "ignore",
+    }
 
 
 settings = Settings()

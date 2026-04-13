@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { projectApi, type Project } from "@/lib/api";
+import { ensureAuth } from "@/lib/auth";
 
 export interface ProjectFile {
   path: string;
@@ -28,7 +30,25 @@ export interface BuildStatus {
   error?: string;
 }
 
+function apiProjectToInfo(p: Project): ProjectInfo {
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    template: p.template,
+    godotVersion: "4.4",
+    status: p.status ?? "active",
+    createdAt: p.created_at,
+    updatedAt: p.created_at,
+  };
+}
+
 interface ProjectState {
+  // Project list
+  projects: ProjectInfo[];
+  projectsLoading: boolean;
+  projectsError: string | null;
+
   // Current project
   currentProject: ProjectInfo | null;
   isLoading: boolean;
@@ -45,6 +65,12 @@ interface ProjectState {
 
   // Build
   buildStatuses: BuildStatus[];
+
+  // Async actions
+  fetchProjects: () => Promise<void>;
+  fetchProject: (id: string) => Promise<void>;
+  createProject: (data: { name: string; template?: string; description?: string }) => Promise<ProjectInfo>;
+  deleteProject: (id: string) => Promise<void>;
 
   // Actions
   setProject: (project: ProjectInfo | null) => void;
@@ -68,19 +94,79 @@ interface ProjectState {
 }
 
 const initialState = {
-  currentProject: null,
+  projects: [] as ProjectInfo[],
+  projectsLoading: false,
+  projectsError: null as string | null,
+  currentProject: null as ProjectInfo | null,
   isLoading: false,
-  error: null,
-  files: [],
-  openFiles: [],
-  activeFile: null,
+  error: null as string | null,
+  files: [] as ProjectFile[],
+  openFiles: [] as string[],
+  activeFile: null as string | null,
   isGameRunning: false,
-  gameOutput: [],
-  buildStatuses: [],
+  gameOutput: [] as string[],
+  buildStatuses: [] as BuildStatus[],
 };
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
   ...initialState,
+
+  // Async actions
+  fetchProjects: async () => {
+    set({ projectsLoading: true, projectsError: null });
+    try {
+      await ensureAuth();
+      const data = await projectApi.list();
+      const list = Array.isArray(data) ? data : (data as any).projects ?? [];
+      set({ projects: list.map(apiProjectToInfo), projectsLoading: false });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load projects";
+      set({ projectsError: message, projectsLoading: false });
+    }
+  },
+
+  fetchProject: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await ensureAuth();
+      const data = await projectApi.get(id);
+      set({ currentProject: apiProjectToInfo(data), isLoading: false });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load project";
+      set({ error: message, isLoading: false });
+    }
+  },
+
+  createProject: async (data) => {
+    set({ projectsLoading: true, projectsError: null });
+    try {
+      await ensureAuth();
+      const created = await projectApi.create(data);
+      const info = apiProjectToInfo(created);
+      set((state) => ({
+        projects: [...state.projects, info],
+        projectsLoading: false,
+      }));
+      return info;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create project";
+      set({ projectsError: message, projectsLoading: false });
+      throw new Error(message);
+    }
+  },
+
+  deleteProject: async (id: string) => {
+    try {
+      await projectApi.delete(id);
+      set((state) => ({
+        projects: state.projects.filter((p) => p.id !== id),
+      }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to delete project";
+      set({ projectsError: message });
+      throw new Error(message);
+    }
+  },
 
   setProject: (project) => set({ currentProject: project, error: null }),
   setLoading: (isLoading) => set({ isLoading }),

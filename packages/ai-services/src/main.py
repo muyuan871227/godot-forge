@@ -55,6 +55,7 @@ app.include_router(
 app.include_router(npcai.router, prefix="/api/v1/npcai", tags=["NPC AI"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["Projects"])
+app.include_router(projects.templates_router, prefix="/api/v1/templates", tags=["Templates"])
 app.include_router(build.router, prefix="/api/v1/build", tags=["Build & Export"])
 app.include_router(
     marketplace.router, prefix="/api/v1/marketplace", tags=["Marketplace"]

@@ -223,14 +223,17 @@ function TreeNode({ node, depth, onFileSelect, selectedPath }: TreeNodeProps) {
 }
 
 interface FileTreeProps {
+  files?: FileNode[];
   onFileSelect?: (path: string) => void;
   selectedPath?: string;
 }
 
-export default function FileTree({ onFileSelect, selectedPath }: FileTreeProps) {
+export default function FileTree({ files, onFileSelect, selectedPath }: FileTreeProps) {
+  const treeData = files && files.length > 0 ? files : projectTree;
+
   return (
     <div className="text-sm">
-      {projectTree.map((node) => (
+      {treeData.map((node) => (
         <TreeNode
           key={node.path}
           node={node}

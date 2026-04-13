@@ -15,7 +15,9 @@ import {
   List,
   Wand2,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
+import { imagegenApi, audiogenApi, modelgenApi } from "@/lib/api";
 
 type AssetType = "all" | "sprites" | "models" | "audio" | "animations";
 type ViewMode = "grid" | "list";
@@ -36,11 +38,62 @@ export default function AssetsPage() {
   const [generateType, setGenerateType] = useState<"sprite" | "3d" | "audio">("sprite");
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleGenerate = () => {
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generatedAssets, setGeneratedAssets] = useState<
+    { id: string; name: string; type: "sprites" | "models" | "audio"; path: string; size: string; createdAt: string }[]
+  >([]);
+
+  const handleGenerate = async () => {
     if (!generatePrompt.trim()) return;
     setIsGenerating(true);
-    // Simulated generation delay
-    setTimeout(() => setIsGenerating(false), 3000);
+    setGenerateError(null);
+
+    try {
+      if (generateType === "sprite") {
+        const result = await imagegenApi.generate(generatePrompt, {
+          style: "pixel_art",
+          width: 32,
+          height: 32,
+        });
+        const newAsset = {
+          id: Date.now().toString(),
+          name: result.image_path.split("/").pop() || "sprite.png",
+          type: "sprites" as const,
+          path: result.image_path,
+          size: "N/A",
+          createdAt: "just now",
+        };
+        setGeneratedAssets((prev) => [newAsset, ...prev]);
+      } else if (generateType === "3d") {
+        const result = await modelgenApi.generate(generatePrompt);
+        const newAsset = {
+          id: Date.now().toString(),
+          name: result.model_path.split("/").pop() || "model.glb",
+          type: "models" as const,
+          path: result.model_path,
+          size: "N/A",
+          createdAt: "just now",
+        };
+        setGeneratedAssets((prev) => [newAsset, ...prev]);
+      } else if (generateType === "audio") {
+        const result = await audiogenApi.sfx(generatePrompt);
+        const newAsset = {
+          id: Date.now().toString(),
+          name: result.filename,
+          type: "audio" as const,
+          path: `assets/audio/${result.filename}`,
+          size: "N/A",
+          createdAt: "just now",
+        };
+        setGeneratedAssets((prev) => [newAsset, ...prev]);
+      }
+      setGeneratePrompt("");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Generation failed. Please try again.";
+      setGenerateError(message);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -109,7 +162,7 @@ export default function AssetsPage() {
 
         {/* Asset Grid */}
         <div className="flex-1 overflow-auto scrollbar-thin p-4">
-          <AssetGrid filter={filter} viewMode={viewMode} searchQuery={searchQuery} />
+          <AssetGrid filter={filter} viewMode={viewMode} searchQuery={searchQuery} assets={generatedAssets} />
         </div>
       </div>
 
@@ -202,24 +255,39 @@ export default function AssetsPage() {
             )}
           </button>
 
+          {/* Error Display */}
+          {generateError && (
+            <div className="p-3 rounded-lg bg-godot-error/10 border border-godot-error/30 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-godot-error shrink-0 mt-0.5" />
+              <p className="text-xs text-godot-error">{generateError}</p>
+            </div>
+          )}
+
           {/* Generation History */}
           <div>
             <label className="text-xs font-medium text-gray-400 mb-2 block">Recent Generations</label>
             <div className="space-y-2">
-              {["Hero sprite sheet", "Enemy goblin", "Background forest"].map((item, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-godot-dark-bg hover:bg-godot-dark-card transition-colors cursor-pointer"
-                >
-                  <div className="w-10 h-10 rounded bg-godot-dark-card flex items-center justify-center">
-                    <Image className="w-5 h-5 text-gray-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-300 truncate">{item}</p>
-                    <p className="text-xs text-gray-600">Sprite - 32x32</p>
-                  </div>
-                </div>
-              ))}
+              {generatedAssets.length === 0 ? (
+                <p className="text-xs text-gray-600 px-2">No assets generated yet. Use the form above to create new assets.</p>
+              ) : (
+                generatedAssets.slice(0, 10).map((asset) => {
+                  const TypeIcon = asset.type === "sprites" ? Image : asset.type === "models" ? Box : Music;
+                  return (
+                    <div
+                      key={asset.id}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-godot-dark-bg hover:bg-godot-dark-card transition-colors cursor-pointer"
+                    >
+                      <div className="w-10 h-10 rounded bg-godot-dark-card flex items-center justify-center">
+                        <TypeIcon className="w-5 h-5 text-gray-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-300 truncate">{asset.name}</p>
+                        <p className="text-xs text-gray-600">{asset.type} - {asset.createdAt}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

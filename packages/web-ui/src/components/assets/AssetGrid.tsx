@@ -134,10 +134,12 @@ interface AssetGridProps {
   filter: string;
   viewMode: "grid" | "list";
   searchQuery: string;
+  assets?: Asset[];
 }
 
-export default function AssetGrid({ filter, viewMode, searchQuery }: AssetGridProps) {
-  const filtered = mockAssets.filter((a) => {
+export default function AssetGrid({ filter, viewMode, searchQuery, assets }: AssetGridProps) {
+  const source = assets && assets.length > 0 ? [...assets, ...mockAssets] : mockAssets;
+  const filtered = source.filter((a) => {
     const matchesFilter = filter === "all" || a.type === filter;
     const matchesSearch =
       !searchQuery ||

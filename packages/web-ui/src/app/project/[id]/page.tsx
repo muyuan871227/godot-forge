@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import FileTree from "@/components/editor/FileTree";
 import GamePreview from "@/components/preview/GamePreview";
 import {
@@ -11,10 +12,87 @@ import {
   FileCode2,
   FolderTree,
   Monitor,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
+import { useProjectStore, type ProjectFile } from "@/lib/stores/project";
+import { projectApi } from "@/lib/api";
 
 export default function ProjectOverviewPage() {
+  const params = useParams();
+  const projectId = params?.id as string;
   const [isRunning, setIsRunning] = useState(false);
+  const [fileTree, setFileTree] = useState<ProjectFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [filesError, setFilesError] = useState<string | null>(null);
+
+  const {
+    currentProject,
+    isLoading,
+    error,
+    fetchProject,
+  } = useProjectStore();
+
+  useEffect(() => {
+    if (projectId) {
+      fetchProject(projectId);
+    }
+  }, [projectId, fetchProject]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    setFilesLoading(true);
+    setFilesError(null);
+
+    projectApi
+      .files(projectId, "list")
+      .then((data) => {
+        if (!cancelled) {
+          // The API returns file data; normalize to ProjectFile[] if possible
+          if (Array.isArray(data)) {
+            setFileTree(data as ProjectFile[]);
+          } else {
+            setFileTree([]);
+          }
+          setFilesLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setFilesError(
+            err instanceof Error ? err.message : "Failed to load file tree"
+          );
+          setFilesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-godot-accent animate-spin" />
+          <p className="text-gray-400">Loading project...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <AlertCircle className="w-8 h-8 text-godot-error" />
+          <p className="text-godot-error">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full">
@@ -23,11 +101,23 @@ export default function ProjectOverviewPage() {
         <div className="p-4 border-b border-godot-dark-border flex items-center justify-between">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
             <FolderTree className="w-4 h-4 text-godot-accent" />
-            File Explorer
+            {currentProject?.name || "File Explorer"}
           </h3>
         </div>
         <div className="flex-1 overflow-auto scrollbar-thin p-2">
-          <FileTree />
+          {filesLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+            </div>
+          ) : filesError ? (
+            <div className="px-2 py-4 text-xs text-gray-500">
+              <p>{filesError}</p>
+              <p className="mt-1">Showing default file tree.</p>
+              <FileTree />
+            </div>
+          ) : (
+            <FileTree files={fileTree.length > 0 ? fileTree : undefined} />
+          )}
         </div>
       </div>
 
@@ -80,11 +170,11 @@ export default function ProjectOverviewPage() {
                 <FileCode2 className="w-12 h-12 text-gray-600" />
               </div>
               <h3 className="text-xl font-semibold text-gray-300 mb-2">
-                Project Overview
+                {currentProject?.name || "Project Overview"}
               </h3>
               <p className="text-gray-500 max-w-md">
-                Click Run to preview your game, or use the Chat tab to generate
-                content with AI assistance.
+                {currentProject?.description ||
+                  "Click Run to preview your game, or use the Chat tab to generate content with AI assistance."}
               </p>
             </div>
           )}
