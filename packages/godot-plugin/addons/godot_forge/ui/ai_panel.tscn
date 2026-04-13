@@ -13,14 +13,22 @@ layout_mode = 2
 
 [node name="StatusLabel" type="Label" parent="StatusBar"]
 layout_mode = 2
+size_flags_horizontal = 3
 text = "○ MCP Disconnected"
+
+[node name="SettingsButton" type="Button" parent="StatusBar"]
+layout_mode = 2
+text = "Settings"
+flat = true
 
 [node name="ChatLog" type="RichTextLabel" parent="."]
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
 text = "[b]GodotForge AI Assistant[/b]
-Type a message to get started."
+Type a message to get started.
+Use Ctrl+Enter to send."
+scroll_following = true
 
 [node name="InputArea" type="HBoxContainer" parent="."]
 layout_mode = 2
@@ -33,4 +41,5 @@ placeholder_text = "Describe what you want to create..."
 
 [node name="SendButton" type="Button" parent="InputArea"]
 layout_mode = 2
+custom_minimum_size = Vector2(70, 0)
 text = "Send"
