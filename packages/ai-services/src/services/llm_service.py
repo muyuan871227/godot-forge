@@ -342,7 +342,9 @@ async def _generate_ollama(
 ) -> dict[str, Any]:
     import httpx
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    # NO_PROXY doesn't always work with httpx — explicitly set no proxy for localhost
+    transport = httpx.AsyncHTTPTransport(proxy=None)
+    async with httpx.AsyncClient(timeout=120.0, transport=transport) as client:
         response = await client.post(
             f"{settings.ollama_base_url}/api/chat",
             json={

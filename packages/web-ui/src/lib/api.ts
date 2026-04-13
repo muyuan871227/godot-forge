@@ -70,12 +70,19 @@ class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  async post<T>(path: string, body?: unknown): Promise<T> {
-    const response = await fetch(this.buildUrl(path), {
-      method: "POST", headers: this.getHeaders(),
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    return this.handleResponse<T>(response);
+  async post<T>(path: string, body?: unknown, timeoutMs = 120000): Promise<T> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(this.buildUrl(path), {
+        method: "POST", headers: this.getHeaders(),
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+      return this.handleResponse<T>(response);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async put<T>(path: string, body?: unknown): Promise<T> {

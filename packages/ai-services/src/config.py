@@ -1,7 +1,12 @@
 """配置管理 — 所有 AI 供应商通过环境变量配置"""
 import os
+from pathlib import Path
 
 from pydantic_settings import BaseSettings
+
+# Resolve .env from project root (2 levels up from this file)
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_ENV_FILE = _PROJECT_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -34,7 +39,7 @@ class Settings(BaseSettings):
     godot_path: str = "godot"
 
     model_config = {
-        "env_file": "../../.env",
+        "env_file": str(_ENV_FILE),
         "env_prefix": "GODOTFORGE_",
         "extra": "ignore",
     }
