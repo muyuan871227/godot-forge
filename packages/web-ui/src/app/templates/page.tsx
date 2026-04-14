@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Gamepad2,
   Map,
@@ -10,7 +12,10 @@ import {
   ArrowRight,
   Star,
   Clock,
+  Loader2,
 } from "lucide-react";
+import { projectApi } from "@/lib/api";
+import { ensureAuth } from "@/lib/auth";
 
 interface Template {
   id: string;
@@ -102,6 +107,25 @@ const difficultyColors: Record<string, string> = {
 };
 
 export default function TemplatesPage() {
+  const router = useRouter();
+  const [creatingId, setCreatingId] = useState<string | null>(null);
+
+  const handleUseTemplate = async (template: Template) => {
+    setCreatingId(template.id);
+    try {
+      await ensureAuth();
+      const project = await projectApi.create({
+        name: template.name,
+        template: template.id,
+        description: template.description,
+      });
+      router.push(`/project/${project.id}/chat`);
+    } catch (err: any) {
+      alert(`Failed to create project: ${err.message || err}`);
+      setCreatingId(null);
+    }
+  };
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -169,9 +193,22 @@ export default function TemplatesPage() {
                     {template.estimatedTime}
                   </span>
                 </div>
-                <button className="flex items-center gap-1 text-sm font-medium text-godot-accent hover:text-godot-accent-hover transition-colors">
-                  Use Template
-                  <ArrowRight className="w-4 h-4" />
+                <button
+                  onClick={() => handleUseTemplate(template)}
+                  disabled={creatingId !== null}
+                  className="flex items-center gap-1 text-sm font-medium text-godot-accent hover:text-godot-accent-hover transition-colors disabled:opacity-50"
+                >
+                  {creatingId === template.id ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      Use Template
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
