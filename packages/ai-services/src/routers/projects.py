@@ -119,7 +119,7 @@ def _default_project_godot(name: str, godot_version: str) -> str:
 
 config/name="{name}"
 config/features=PackedStringArray("4.4", "GL Compatibility")
-run/main_scene=""
+run/main_scene="res://main.tscn"
 config/icon="res://icon.svg"
 
 [display]
@@ -644,6 +644,32 @@ async def generate_and_preview(
     explanation = result.get("explanation", "")
     generated_files = result.get("files", [])
 
+    # DEBUG: write raw result to a file for inspection
+    import json as _json
+    debug_path = proj_dir / "_debug_codegen_result.json"
+    debug_path.write_text(_json.dumps({
+        "code_len": len(result.get("code", "")),
+        "files_count": len(generated_files),
+        "files_paths": [f.get("path","") for f in generated_files],
+        "files_content_lens": [len(f.get("content","")) for f in generated_files],
+        "explanation_len": len(explanation),
+    }, indent=2))
+
+    # Ensure we always have writable files — LLM parsers can be unreliable
+    code_text = result.get("code", "")
+
+    # Filter out files with empty content
+    generated_files = [f for f in generated_files if f.get("content", "").strip()]
+
+    # If no usable files but raw code exists, save as a single file
+    if not generated_files and code_text.strip():
+        generated_files = [{"path": "res://scripts/main.gd", "content": code_text}]
+
+    # Also always write the raw code as main.gd if not already present
+    has_main = any("main.gd" in f.get("path", "") for f in generated_files)
+    if not has_main and code_text.strip():
+        generated_files.insert(0, {"path": "res://scripts/main.gd", "content": code_text})
+
     # ----- Step 2: Write generated files to project directory ----- #
     files_written: list[dict] = []
     for f in generated_files:
@@ -656,19 +682,40 @@ async def generate_and_preview(
             rel_path = rel_path[len("res://"):]
         rel_path = rel_path.lstrip("/")
 
-        if not rel_path:
+        if not rel_path or not content:
+            logger.warning("Skipping empty file: path=%r content_len=%d", rel_path, len(content))
             continue
 
         dest = (proj_dir / rel_path).resolve()
 
-        # Prevent path traversal
-        if not str(dest).startswith(str(proj_dir)):
+        # Prevent path traversal (resolve proj_dir too for symlink consistency)
+        if not str(dest).startswith(str(proj_dir.resolve())):
             logger.warning("Skipping path traversal attempt: %s", raw_path)
             continue
 
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(content)
         files_written.append({"path": rel_path, "size": len(content.encode())})
+
+    # Ensure a main scene exists so Godot has something to export
+    main_scene_path = proj_dir / "main.tscn"
+    if not main_scene_path.exists():
+        # Find the first .gd script to attach
+        first_script = ""
+        for fw in files_written:
+            if fw["path"].endswith(".gd"):
+                first_script = fw["path"]
+                break
+        tscn = '[gd_scene format=3]\n\n[node name="Main" type="Node2D"]\n'
+        if first_script:
+            tscn = (
+                f'[gd_scene load_steps=2 format=3]\n\n'
+                f'[ext_resource type="Script" path="res://{first_script}" id="1"]\n\n'
+                f'[node name="Main" type="Node2D"]\n'
+                f'script = ExtResource("1")\n'
+            )
+        main_scene_path.write_text(tscn)
+        files_written.append({"path": "main.tscn", "size": len(tscn.encode())})
 
     # ----- Step 3: Ensure project.godot exists ----- #
     _ensure_project_godot(proj_dir, proj.get("name", "GeneratedProject"))
