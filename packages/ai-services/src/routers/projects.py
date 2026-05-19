@@ -753,18 +753,27 @@ async def generate_and_preview(
 async def serve_preview(
     project_id: str,
     file_path: str,
-    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Serve static files from the project's Web export output directory.
 
-    This allows an iframe to load the exported game at
+    Public endpoint (no auth) so iframes can load the exported game directly at
     ``/api/v1/projects/{project_id}/preview/index.html``.
+    Searches all user directories for a matching project_id.
     """
-    proj = _find_project(user["id"], project_id)
-    if proj is None:
+    # Find the project across all users (no auth needed for public preview)
+    projects_root = PROJECTS_ROOT
+    proj_dir: Path | None = None
+    for user_dir in projects_root.iterdir():
+        if not user_dir.is_dir():
+            continue
+        candidate = user_dir / project_id
+        if candidate.exists() and candidate.is_dir():
+            proj_dir = candidate
+            break
+
+    if proj_dir is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    proj_dir = _project_dir(user["id"], project_id)
     export_dir = proj_dir / "_web_export"
 
     target = (export_dir / file_path).resolve()
@@ -786,8 +795,14 @@ async def serve_preview(
         }
         content_type = extra_types.get(suffix, "application/octet-stream")
 
+    # No-threads Godot Web build doesn't need COEP/COOP, just CORS
+    headers = {
+        "Cross-Origin-Resource-Policy": "cross-origin",
+        "Access-Control-Allow-Origin": "*",
+    }
+
     return FastAPIFileResponse(
         path=str(target),
         media_type=content_type,
-        filename=target.name,
+        headers=headers,
     )
