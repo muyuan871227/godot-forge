@@ -795,10 +795,13 @@ async def serve_preview(
         }
         content_type = extra_types.get(suffix, "application/octet-stream")
 
-    # No-threads Godot Web build doesn't need COEP/COOP, just CORS
+    # No-threads Godot Web build doesn't need COEP/COOP, just CORS.
+    # no-store prevents the browser caching stale .pck/.wasm after re-export.
     headers = {
         "Cross-Origin-Resource-Policy": "cross-origin",
         "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
     }
 
     return FastAPIFileResponse(
