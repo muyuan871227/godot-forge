@@ -1,0 +1,54 @@
+{
+  "name": "Puzzle Game",
+  "description": "Grid-based puzzle game framework with drag-and-drop or click-to-swap piece mechanics. Includes a puzzle manager that handles board state, win detection, shuffle, hints, and level progression. Suitable for match-3, sliding puzzles, jigsaw-style games, and tile-based logic puzzles.",
+  "category": "2d",
+  "tags": ["puzzle", "2d", "casual", "grid", "logic", "match-3"],
+  "thumbnail": "res://thumbnail.png",
+  "features": [
+    "Configurable grid-based board (rows x columns)",
+    "Multiple interaction modes: click-swap, drag-drop, slide",
+    "Win condition checking with customizable rules",
+    "Move counter and timer",
+    "Level data loading from JSON",
+    "Shuffle, hint, and undo support",
+    "Piece types with color/shape variants"
+  ],
+  "godot_version": "4.4",
+  "ai_customizable": {
+    "grid_columns": {
+      "type": "int",
+      "default": 8,
+      "description": "Number of columns in the puzzle grid"
+    },
+    "grid_rows": {
+      "type": "int",
+      "default": 8,
+      "description": "Number of rows in the puzzle grid"
+    },
+    "cell_size": {
+      "type": "float",
+      "default": 64.0,
+      "description": "Size of each grid cell in pixels"
+    },
+    "num_piece_types": {
+      "type": "int",
+      "default": 5,
+      "description": "Number of distinct piece types/colors"
+    },
+    "match_count": {
+      "type": "int",
+      "default": 3,
+      "description": "Minimum pieces in a row to count as a match"
+    },
+    "interaction_mode": {
+      "type": "string",
+      "default": "swap",
+      "description": "Interaction mode: swap, drag, slide"
+    },
+    "time_limit": {
+      "type": "float",
+      "default": 0.0,
+      "description": "Time limit in seconds (0 = no limit)"
+    }
+  }
+}

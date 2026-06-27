@@ -1,0 +1,44 @@
+{
+  "name": "Visual Novel",
+  "description": "A complete visual novel engine with dialogue scripting, branching choices, character portraits, background switching, and a save/load system. Story content is driven by a simple JSON-based script format.",
+  "category": "2d",
+  "tags": ["visual-novel", "story", "narrative", "dialogue", "choices", "2d"],
+  "thumbnail": "res://thumbnail.png",
+  "features": [
+    "JSON-driven dialogue scripting with speaker, text, and commands",
+    "Branching choices that affect story flow",
+    "Typewriter text reveal with configurable speed",
+    "Character portrait display with position and expression",
+    "Background image transitions",
+    "Auto-advance and skip modes",
+    "Save/load game state to user filesystem"
+  ],
+  "godot_version": "4.4",
+  "ai_customizable": {
+    "text_speed": {
+      "type": "float",
+      "default": 0.03,
+      "description": "Seconds per character for typewriter effect"
+    },
+    "auto_advance_delay": {
+      "type": "float",
+      "default": 2.0,
+      "description": "Seconds to wait in auto mode before advancing"
+    },
+    "default_transition": {
+      "type": "string",
+      "default": "fade",
+      "description": "Default background transition type (fade, dissolve, cut)"
+    },
+    "text_box_opacity": {
+      "type": "float",
+      "default": 0.85,
+      "description": "Opacity of the dialogue text box background"
+    },
+    "max_save_slots": {
+      "type": "int",
+      "default": 10,
+      "description": "Number of save slots available"
+    }
+  }
+}

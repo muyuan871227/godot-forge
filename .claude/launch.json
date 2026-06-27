@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "packages/web-ui"],
+      "port": 3000
+    },
+    {
+      "name": "ai-services",
+      "runtimeExecutable": "packages/ai-services/.venv/bin/python",
+      "runtimeArgs": ["-m", "uvicorn", "src.main:app", "--port", "8100", "--reload", "--app-dir", "packages/ai-services"],
+      "port": 8100
+    },
+    {
+      "name": "mcp-server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "watch", "packages/mcp-server/src/index.ts"],
+      "port": 6505
+    }
+  ]
+}

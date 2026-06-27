@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  mcp-server:
+    build:
+      context: ../packages/mcp-server
+      dockerfile: ../../docker/Dockerfile.mcp
+    ports:
+      - "6505:6505"
+    environment:
+      - GODOT_MCP_PORT=6505
+    volumes:
+      - ../packages/mcp-server/src:/app/src
+    restart: unless-stopped
+
+  ai-services:
+    build:
+      context: ../packages/ai-services
+      dockerfile: ../../docker/Dockerfile.ai
+    ports:
+      - "8100:8100"
+    env_file:
+      - ../.env
+    volumes:
+      - ../packages/ai-services/src:/app/src
+      - ai-cache:/app/cache
+    restart: unless-stopped
+
+  web-ui:
+    build:
+      context: ../packages/web-ui
+      dockerfile: ../../docker/Dockerfile.web
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8100
+      - NEXT_PUBLIC_WS_URL=ws://localhost:6505
+    volumes:
+      - ../packages/web-ui/src:/app/src
+    restart: unless-stopped
+
+volumes:
+  ai-cache:

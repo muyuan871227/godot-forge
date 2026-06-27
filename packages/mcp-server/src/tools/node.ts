@@ -1,0 +1,29 @@
+import { GodotConnection } from "../transport/websocket.js";
+import { RegisteredTool } from "./index.js";
+
+export function registerNodeTools(godot: GodotConnection): RegisteredTool[] {
+  return [
+    { definition: { name: "add_node", description: "向场景树添加节点", inputSchema: { type: "object", properties: {
+      parent_path: { type: "string" }, node_type: { type: "string" }, node_name: { type: "string" }, properties: { type: "object", description: "节点属性键值对" },
+    }, required: ["parent_path", "node_type", "node_name"] } }, handler: async (args) => godot.send("add_node", args) },
+    { definition: { name: "remove_node", description: "从场景树移除节点", inputSchema: { type: "object", properties: { node_path: { type: "string" } }, required: ["node_path"] } }, handler: async (args) => godot.send("remove_node", args) },
+    { definition: { name: "duplicate_node", description: "复制节点", inputSchema: { type: "object", properties: { node_path: { type: "string" }, new_name: { type: "string" } }, required: ["node_path"] } }, handler: async (args) => godot.send("duplicate_node", args) },
+    { definition: { name: "rename_node", description: "重命名节点", inputSchema: { type: "object", properties: { node_path: { type: "string" }, new_name: { type: "string" } }, required: ["node_path", "new_name"] } }, handler: async (args) => godot.send("rename_node", args) },
+    { definition: { name: "reparent_node", description: "更改节点的父节点", inputSchema: { type: "object", properties: { node_path: { type: "string" }, new_parent_path: { type: "string" } }, required: ["node_path", "new_parent_path"] } }, handler: async (args) => godot.send("reparent_node", args) },
+    { definition: { name: "get_node_info", description: "获取节点的详细信息", inputSchema: { type: "object", properties: { node_path: { type: "string" } }, required: ["node_path"] } }, handler: async (args) => godot.send("get_node_info", args) },
+    { definition: { name: "get_node_properties", description: "获取节点的所有属性", inputSchema: { type: "object", properties: { node_path: { type: "string" } }, required: ["node_path"] } }, handler: async (args) => godot.send("get_node_properties", args) },
+    { definition: { name: "set_node_property", description: "设置节点属性", inputSchema: { type: "object", properties: { node_path: { type: "string" }, property: { type: "string" }, value: { description: "属性值" } }, required: ["node_path", "property", "value"] } }, handler: async (args) => godot.send("set_node_property", args) },
+    { definition: { name: "get_node_children", description: "获取节点的所有子节点", inputSchema: { type: "object", properties: { node_path: { type: "string" } }, required: ["node_path"] } }, handler: async (args) => godot.send("get_node_children", args) },
+    { definition: { name: "get_node_signals", description: "获取节点的所有信号", inputSchema: { type: "object", properties: { node_path: { type: "string" } }, required: ["node_path"] } }, handler: async (args) => godot.send("get_node_signals", args) },
+    { definition: { name: "connect_signal", description: "连接节点信号", inputSchema: { type: "object", properties: { source_path: { type: "string" }, signal_name: { type: "string" }, target_path: { type: "string" }, method_name: { type: "string" } }, required: ["source_path", "signal_name", "target_path", "method_name"] } }, handler: async (args) => godot.send("connect_signal", args) },
+    { definition: { name: "disconnect_signal", description: "断开节点信号连接", inputSchema: { type: "object", properties: { source_path: { type: "string" }, signal_name: { type: "string" }, target_path: { type: "string" }, method_name: { type: "string" } }, required: ["source_path", "signal_name", "target_path", "method_name"] } }, handler: async (args) => godot.send("disconnect_signal", args) },
+    { definition: { name: "add_to_group", description: "将节点添加到组", inputSchema: { type: "object", properties: { node_path: { type: "string" }, group_name: { type: "string" } }, required: ["node_path", "group_name"] } }, handler: async (args) => godot.send("add_to_group", args) },
+    { definition: { name: "remove_from_group", description: "将节点从组中移除", inputSchema: { type: "object", properties: { node_path: { type: "string" }, group_name: { type: "string" } }, required: ["node_path", "group_name"] } }, handler: async (args) => godot.send("remove_from_group", args) },
+    { definition: { name: "get_groups", description: "获取节点所属的所有组", inputSchema: { type: "object", properties: { node_path: { type: "string" } }, required: ["node_path"] } }, handler: async (args) => godot.send("get_groups", args) },
+    { definition: { name: "get_class_list", description: "获取所有可用的 Godot 类列表", inputSchema: { type: "object", properties: { base_class: { type: "string", description: "基类过滤 (如 Node2D)" } } } }, handler: async (args) => godot.send("get_class_list", args) },
+    { definition: { name: "get_class_properties", description: "获取指定类的所有属性", inputSchema: { type: "object", properties: { class_name: { type: "string" } }, required: ["class_name"] } }, handler: async (args) => godot.send("get_class_properties", args) },
+    { definition: { name: "get_class_methods", description: "获取指定类的所有方法", inputSchema: { type: "object", properties: { class_name: { type: "string" } }, required: ["class_name"] } }, handler: async (args) => godot.send("get_class_methods", args) },
+    { definition: { name: "find_nodes_by_type", description: "在场景中查找指定类型的所有节点", inputSchema: { type: "object", properties: { type_name: { type: "string" } }, required: ["type_name"] } }, handler: async (args) => godot.send("find_nodes_by_type", args) },
+    { definition: { name: "find_nodes_by_group", description: "查找属于指定组的所有节点", inputSchema: { type: "object", properties: { group_name: { type: "string" } }, required: ["group_name"] } }, handler: async (args) => godot.send("find_nodes_by_group", args) },
+  ];
+}

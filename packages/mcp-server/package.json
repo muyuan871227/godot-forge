@@ -1,0 +1,24 @@
+{
+  "name": "@godot-forge/mcp-server",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "godot-forge-mcp": "./build/index.js" },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.23.0",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.15.0",
+    "vitest": "^1.6.0"
+  }
+}

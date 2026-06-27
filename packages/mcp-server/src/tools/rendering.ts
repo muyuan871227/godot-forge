@@ -1,0 +1,15 @@
+import { GodotConnection } from "../transport/websocket.js";
+import { RegisteredTool } from "./index.js";
+
+export function registerRenderingTools(godot: GodotConnection): RegisteredTool[] {
+  return [
+    { definition: { name: "set_environment", description: "设置场景环境", inputSchema: { type: "object", properties: { bg_mode: { type: "string" }, bg_color: { type: "string" }, ambient_light_color: { type: "string" }, fog_enabled: { type: "boolean" } } } }, handler: async (args) => godot.send("set_environment", args) },
+    { definition: { name: "configure_camera", description: "配置相机参数", inputSchema: { type: "object", properties: { node_path: { type: "string" }, projection: { type: "string", description: "perspective | orthogonal" }, fov: { type: "number" }, near: { type: "number" }, far: { type: "number" } }, required: ["node_path"] } }, handler: async (args) => godot.send("configure_camera", args) },
+    { definition: { name: "add_light", description: "添加光源", inputSchema: { type: "object", properties: { parent_path: { type: "string" }, light_type: { type: "string", description: "directional | omni | spot" }, node_name: { type: "string" }, color: { type: "string" }, energy: { type: "number" } }, required: ["parent_path", "light_type"] } }, handler: async (args) => godot.send("add_light", args) },
+    { definition: { name: "set_material", description: "设置节点材质", inputSchema: { type: "object", properties: { node_path: { type: "string" }, material_type: { type: "string", description: "standard | shader | canvas_item" }, properties: { type: "object" } }, required: ["node_path", "material_type"] } }, handler: async (args) => godot.send("set_material", args) },
+    { definition: { name: "create_shader", description: "创建着色器", inputSchema: { type: "object", properties: { shader_type: { type: "string", description: "spatial | canvas_item | particles | sky" }, code: { type: "string" }, save_path: { type: "string" } }, required: ["shader_type", "code", "save_path"] } }, handler: async (args) => godot.send("create_shader", args) },
+    { definition: { name: "set_canvas_layer", description: "设置 CanvasLayer 属性", inputSchema: { type: "object", properties: { node_path: { type: "string" }, layer: { type: "number" }, follow_viewport: { type: "boolean" } }, required: ["node_path"] } }, handler: async (args) => godot.send("set_canvas_layer", args) },
+    { definition: { name: "configure_viewport", description: "配置视口参数", inputSchema: { type: "object", properties: { node_path: { type: "string" }, size: { type: "object" }, msaa: { type: "string" }, render_target_update_mode: { type: "string" } }, required: ["node_path"] } }, handler: async (args) => godot.send("configure_viewport", args) },
+    { definition: { name: "take_viewport_screenshot", description: "截取视口截图", inputSchema: { type: "object", properties: { node_path: { type: "string" }, save_path: { type: "string" } }, required: ["save_path"] } }, handler: async (args) => godot.send("take_viewport_screenshot", args) },
+  ];
+}
